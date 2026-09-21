@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Mancuerna IoT</title>
+
+    <style>
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background: #f2f4f7;
+            color: #222;
+        }
+
+        header {
+            background: #111827;
+            color: white;
+            padding: 25px;
+            text-align: center;
+        }
+
+        header h1 {
+            margin: 0 0 8px 0;
+        }
+
+        header p {
+            margin: 0;
+            opacity: 0.8;
+        }
+
+        .contenedor {
+            width: 90%;
+            max-width: 1100px;
+            margin: 30px auto;
+        }
+
+        .estado {
+            background: white;
+            border-radius: 12px;
+            padding: 15px;
+            margin-bottom: 25px;
+            text-align: center;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+        }
+
+        .online {
+            color: green;
+            font-weight: bold;
+        }
+
+        .tarjetas {
+            display: grid;
+            grid-template-columns: repeat(
+                auto-fit,
+                minmax(220px, 1fr)
+            );
+
+            gap: 20px;
+        }
+
+        .tarjeta {
+            background: white;
+            border-radius: 15px;
+            padding: 30px 20px;
+            text-align: center;
+
+            box-shadow:
+                0 4px 12px rgba(0, 0, 0, 0.10);
+
+            transition: transform 0.2s;
+        }
+
+        .tarjeta:hover {
+            transform: translateY(-3px);
+        }
+
+        .tarjeta h2 {
+            margin-top: 0;
+            color: #555;
+            font-size: 20px;
+        }
+
+        .valor {
+            font-size: 45px;
+            font-weight: bold;
+            margin-top: 15px;
+        }
+
+        .movimiento {
+            font-size: 25px;
+            font-weight: bold;
+            margin-top: 20px;
+        }
+
+        .activo {
+            color: green;
+        }
+
+        .inactivo {
+            color: #777;
+        }
+
+        .info {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            margin-top: 25px;
+
+            box-shadow:
+                0 4px 12px rgba(0, 0, 0, 0.08);
+
+            text-align: center;
+        }
+
+        .actualizando {
+            margin-top: 10px;
+            font-size: 13px;
+            color: #777;
+        }
+
+        .sin-datos {
+            background: white;
+            padding: 40px;
+            text-align: center;
+            border-radius: 15px;
+        }
+
+        @media (max-width: 600px) {
+
+            header {
+                padding: 20px 10px;
+            }
+
+            header h1 {
+                font-size: 25px;
+            }
+
+            .contenedor {
+                width: 94%;
+                margin-top: 20px;
+            }
+
+            .valor {
+                font-size: 38px;
+            }
+
+        }
+
+    </style>
+
+</head>
+
+
+<body>
+
+
+<header>
+
+    <h1>🏋️ Mancuerna IoT</h1>
+
+    <p>Sistema de monitoreo de ejercicio</p>
+
+</header>
+
+
+<div class="contenedor">
+
+
+    {% if dato %}
+
+
+        <!-- ESTADO DEL DISPOSITIVO -->
+
+        <div class="estado">
+
+            Dispositivo:
+
+            <strong id="dispositivo">
+                {{ dato.dispositivo }}
+            </strong>
+
+            &nbsp; | &nbsp;
+
+            <span class="online">
+                🟢 ONLINE
+            </span>
+
+        </div>
+
+
+        <!-- TARJETAS PRINCIPALES -->
+
+        <div class="tarjetas">
+
+
+            <!-- ÁNGULO -->
+
+            <div class="tarjeta">
+
+                <h2>📐 Ángulo</h2>
+
+                <div
+                    class="valor"
+                    id="angulo"
+                >
+                    {{ dato.angulo }}°
+                </div>
+
+            </div>
+
+
+            <!-- MOVIMIENTO -->
+
+            <div class="tarjeta">
+
+                <h2>🏃 Movimiento</h2>
+
+                <div
+                    id="movimiento"
+                    class="movimiento
+                    {% if dato.movimiento %}
+                        activo
+                    {% else %}
+                        inactivo
+                    {% endif %}"
+                >
+
+                    {% if dato.movimiento %}
+
+                        ACTIVO 🟢
+
+                    {% else %}
+
+                        INACTIVO ⚪
+
+                    {% endif %}
+
+                </div>
+
+            </div>
+
+
+            <!-- REPETICIONES -->
+
+            <div class="tarjeta">
+
+                <h2>🔄 Repeticiones</h2>
+
+                <div
+                    class="valor"
+                    id="repeticiones"
+                >
+                    {{ dato.repeticiones }}
+                </div>
+
+            </div>
+
+
+        </div>
+
+
+        <!-- INFORMACIÓN -->
+
+        <div class="info">
+
+            <strong>
+                Última actualización:
+            </strong>
+
+            <span id="fecha">
+                {{ dato.fecha_hora }}
+            </span>
+
+            <div class="actualizando">
+
+                Actualización automática cada segundo
+
+            </div>
+
+        </div>
+
+
+    {% else %}
+
+
+        <div class="sin-datos">
+
+            <h2>Sin datos disponibles</h2>
+
+            <p>
+                Esperando información de la Mancuerna IoT...
+            </p>
+
+        </div>
+
+
+    {% endif %}
+
+
+</div>
+
+
+<!-- ========================= -->
+<!-- JAVASCRIPT -->
+<!-- ========================= -->
+
+<script>
+
+
+async function actualizarDatos() {
+
+    try {
+
+        const respuesta =
+            await fetch("/api/datos");
+
+        if (!respuesta.ok) {
+
+            throw new Error(
+                "No se pudo obtener la información"
+            );
+
+        }
+
+        const dato =
+            await respuesta.json();
+
+
+        if (!dato) {
+
+            console.log(
+                "No hay datos disponibles"
+            );
+
+            return;
+
+        }
+
+
+        // =========================
+        // DISPOSITIVO
+        // =========================
+
+        const dispositivo =
+            document.getElementById(
+                "dispositivo"
+            );
+
+        if (dispositivo) {
+
+            dispositivo.textContent =
+                dato.dispositivo;
+
+        }
+
+
+        // =========================
+        // ÁNGULO
+        // =========================
+
+        const angulo =
+            document.getElementById(
+                "angulo"
+            );
+
+        if (angulo) {
+
+            angulo.textContent =
+                dato.angulo + "°";
+
+        }
+
+
+        // =========================
+        // REPETICIONES
+        // =========================
+
+        const repeticiones =
+            document.getElementById(
+                "repeticiones"
+            );
+
+        if (repeticiones) {
+
+            repeticiones.textContent =
+                dato.repeticiones;
+
+        }
+
+
+        // =========================
+        // MOVIMIENTO
+        // =========================
+
+        const movimiento =
+            document.getElementById(
+                "movimiento"
+            );
+
+
+        if (movimiento) {
+
+
+            if (dato.movimiento) {
+
+                movimiento.textContent =
+                    "ACTIVO 🟢";
+
+                movimiento.className =
+                    "movimiento activo";
+
+            }
+
+            else {
+
+                movimiento.textContent =
+                    "INACTIVO ⚪";
+
+                movimiento.className =
+                    "movimiento inactivo";
+
+            }
+
+        }
+
+
+        // =========================
+        // FECHA
+        // =========================
+
+        const fecha =
+            document.getElementById(
+                "fecha"
+            );
+
+        if (fecha) {
+
+            fecha.textContent =
+                dato.fecha_hora;
+
+        }
+
+
+    }
+
+    catch (error) {
+
+        console.error(
+            "Error actualizando dashboard:",
+            error
+        );
+
+    }
+
+}
+
+
+// =========================
+// ACTUALIZAR CADA SEGUNDO
+// =========================
+
+setInterval(
+    actualizarDatos,
+    1000
+);
+
+
+// =========================
+// PRIMERA ACTUALIZACIÓN
+// =========================
+
+actualizarDatos();
+
+
+</script>
+
+
+</body>
+
+</html>
