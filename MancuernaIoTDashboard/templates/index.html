@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mancuerna IoT - Dashboard Deportivo</title>
+    <!-- Chart.js para gráficas en tiempo real -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #0f172a;
+            color: #f8fafc;
+        }
+        header {
+            background: #1e293b;
+            padding: 20px;
+            text-align: center;
+            border-bottom: 1px solid #334155;
+        }
+        header h1 { margin: 0; font-size: 22px; color: #38bdf8; }
+        .contenedor {
+            width: 92%;
+            max-width: 1200px;
+            margin: 20px auto;
+        }
+        .grid-dashboard {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 20px;
+            margin-bottom: 25px;
+        }
+        .tarjeta {
+            background: #1e293b;
+            border-radius: 12px;
+            padding: 20px;
+            border: 1px solid #334155;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
+        }
+        .tarjeta h3 { margin-top: 0; color: #94a3b8; font-size: 13px; text-transform: uppercase; }
+        .valor-grande { font-size: 40px; font-weight: bold; color: #f8fafc; margin: 10px 0; }
+        .badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: bold;
+        }
+        .badge-activo { background: rgba(34, 197, 94, 0.2); color: #4ade80; }
+        .badge-inactivo { background: rgba(148, 163, 184, 0.2); color: #94a3b8; }
+        .grafica-container {
+            background: #1e293b;
+            border-radius: 12px;
+            padding: 20px;
+            border: 1px solid #334155;
+            margin-top: 20px;
+        }
+        @media (max-width: 600px) {
+            .valor-grande { font-size: 32px; }
+            .contenedor { width: 95%; }
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    <h1>🏋️ Monitoreo Biomecánico IoT</h1>
+</header>
+
+<div class="contenedor">
+    <div class="grid-dashboard">
+        <!-- REPETICIONES -->
+        <div class="tarjeta">
+            <h3>Repeticiones Válidas</h3>
+            <div class="valor-grande" id="repeticiones">0</div>
+            <span id="estado-mov" class="badge badge-inactivo">En Reposo</span>
+        </div>
+
+        <!-- ÁNGULO -->
+        <div class="tarjeta">
+            <h3>Ángulo de Inclinación</h3>
+            <div class="valor-grande"><span id="angulo">0</span>°</div>
+            <span id="tecnica-badge" class="badge badge-activo">Técnica: Óptima</span>
+        </div>
+
+        <!-- CADENCIA -->
+        <div class="tarjeta">
+            <h3>Cadencia / Tiempo (TUT)</h3>
+            <div class="valor-grande"><span id="cadencia">0.0</span>s</div>
+            <small style="color: #94a3b8;">Tiempo por repetición</small>
+        </div>
+    </div>
+
+    <!-- GRÁFICA ONDA BIOMECÁNICA -->
+    <div class="grafica-container">
+        <h3 style="color: #94a3b8; margin-top:0;">Onda Biomecánica (Ejes X, Y, Z)</h3>
+        <canvas id="chartOnda" height="110"></canvas>
+    </div>
+</div>
+
+<script>
+let chart;
+
+function inicializarGrafica() {
+    const ctx = document.getElementById('chartOnda').getContext('2d');
+    chart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: [],
+            datasets: [
+                { label: 'Eje X (Lateral)', borderColor: '#ef4444', data: [], tension: 0.3, fill: false },
+                { label: 'Eje Y (Vertical)', borderColor: '#3b82f6', data: [], tension: 0.3, fill: false },
+                { label: 'Eje Z (Profundidad)', borderColor: '#10b981', data: [], tension: 0.3, fill: false }
+            ]
+        },
+        options: {
+            responsive: true,
+            scales: {
+                x: { display: false },
+                y: { grid: { color: '#334155' }, ticks: { color: '#94a3b8' } }
+            },
+            plugins: { legend: { labels: { color: '#f8fafc' } } }
+        }
+    });
+}
+
+async function actualizarDashboard() {
+    try {
+        const respuesta = await fetch('/api/datos');
+        const res = await respuesta.json();
+        
+        if (!res.actual) return;
+
+        const dato = res.actual;
+        const historial = res.historial;
+
+        // Actualizar tarjetas
+        document.getElementById('repeticiones').textContent = dato.repeticiones;
+        document.getElementById('angulo').textContent = dato.angulo;
+        document.getElementById('cadencia').textContent = dato.cadencia;
+
+        // Estado del movimiento
+        const movBadge = document.getElementById('estado-mov');
+        if (dato.movimiento) {
+            movBadge.textContent = "EN MOVIMIENTO 🟢";
+            movBadge.className = "badge badge-activo";
+        } else {
+            movBadge.textContent = "EN REPOSO ⚪";
+            movBadge.className = "badge badge-inactivo";
+        }
+
+        // Estado de técnica
+        document.getElementById('tecnica-badge').textContent = "Técnica: " + dato.tecnica;
+
+        // Actualizar gráfica en tiempo real
+        if (historial && historial.length > 0) {
+            chart.data.labels = historial.map((_, index) => index);
+            chart.data.datasets[0].data = historial.map(h => h.ax);
+            chart.data.datasets[1].data = historial.map(h => h.ay);
+            chart.data.datasets[2].data = historial.map(h => h.az);
+            chart.update('none');
+        }
+
+    } catch (e) {
+        console.error("Error al actualizar datos:", e);
+    }
+}
+
+window.onload = () => {
+    inicializarGrafica();
+    actualizarDashboard();
+    setInterval(actualizarDashboard, 500); // Refresco suave cada 500ms
+};
+</script>
+</body>
+</html>
