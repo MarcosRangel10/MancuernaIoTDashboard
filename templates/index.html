@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard Biomecánico IoT</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { margin: 0; background: #0f172a; color: #fff; font-family: system-ui, sans-serif; padding: 20px; }
+        .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #334155; padding-bottom: 10px; }
+        .status-dot { height: 12px; width: 12px; border-radius: 50%; display: inline-block; margin-right: 6px; }
+        .online { background-color: #22c55e; box-shadow: 0 0 8px #22c55e; }
+        .offline { background-color: #ef4444; box-shadow: 0 0 8px #ef4444; }
+        .panel { background: #1e293b; padding: 20px; border-radius: 12px; margin-top: 15px; border: 1px solid #334155; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; }
+        .card { background: #0f172a; padding: 15px; border-radius: 8px; text-align: center; }
+        .card-num { font-size: 32px; font-weight: bold; color: #38bdf8; }
+        select, input, button { padding: 10px; font-size: 16px; border-radius: 6px; border: none; margin-right: 10px; }
+        button { background: #0284c7; color: white; cursor: pointer; font-weight: bold; }
+        button:hover { background: #0369a1; }
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); justify-content: center; align-items: center; }
+        .modal-content { background: #1e293b; padding: 30px; border-radius: 12px; text-align: center; max-width: 400px; border: 1px solid #38bdf8; }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <h2>🏋️ Monitor Biomecánico IoT</h2>
+    <div>
+        <span id="dot" class="status-dot offline"></span>
+        <span id="estado-txt">Desconectado</span>
+    </div>
+</div>
+
+<!-- PANEL CONFIGURACIÓN DE EJERCICIO -->
+<div class="panel">
+    <h3>Configurar Sesión de Entrenamiento</h3>
+    <select id="ejercicioSelect">
+        <option value="BICEPS">Bíceps (Curl Martillo)</option>
+        <option value="HOMBRO">Hombro (Elevaciones Laterales)</option>
+        <option value="ESPALDA">Espalda (Remo Inclinado)</option>
+        <option value="PECHO">Pecho (Aperturas)</option>
+        <option value="TRICEPS">Tríceps (Press Francés)</option>
+    </select>
+    <input type="number" id="repsInput" value="10" min="1" max="50" style="width: 80px;">
+    <button onclick="iniciarSesion()">Comenzar Ejercicio</button>
+</div>
+
+<!-- PANEL EN TIEMPO REAL -->
+<div class="panel grid">
+    <div class="card">
+        <div>Repeticiones</div>
+        <div id="progresoReps" class="card-num">0 / 0</div>
+    </div>
+    <div class="card">
+        <div>TÉCNICA</div>
+        <div id="calidadTecnica" class="card-num" style="color:#4ade80;">--</div>
+    </div>
+    <div class="card">
+        <div>Cadencia (TUT)</div>
+        <div id="cadenciaVal" class="card-num">0.0s</div>
+    </div>
+</div>
+
+<!-- MODAL DE RESUMEN FINAL -->
+<div id="modalResumen" class="modal">
+    <div class="modal-content">
+        <h2>🎉 ¡Rutina Finalizada!</h2>
+        <p id="resumenEjercicio">Ejercicio: --</p>
+        <div style="font-size: 48px; color: #38bdf8; font-weight: bold;" id="resumenEficiencia">0%</div>
+        <p>Eficiencia de Ejecución</p>
+        <hr style="border-color: #334155;">
+        <p id="resumenDetalles">Óptimas: 0 | Rápidas: 0 | Lentas: 0</p>
+        <button onclick="cerrarModal()">Entrenar de Nuevo</button>
+    </div>
+</div>
+
+<script>
+async function actualizar() {
+    const res = await fetch('/api/estado');
+    const data = await res.json();
+
+    // Estado conexión
+    const dot = document.getElementById('dot');
+    const txt = document.getElementById('estado-txt');
+    if (data.conectado) {
+        dot.className = 'status-dot online';
+        txt.textContent = 'ESP32 Conectado';
+    } else {
+        dot.className = 'status-dot offline';
+        txt.textContent = 'ESP32 Desconectado';
+    }
+
+    // Datos en tiempo real
+    if (data.datos && data.en_rutina) {
+        document.getElementById('progresoReps').textContent = `${data.datos.repeticiones} / ${data.datos.meta}`;
+        document.getElementById('cadenciaVal').textContent = `${data.datos.tut}s`;
+        document.getElementById('calidadTecnica').textContent = data.datos.tecnica;
+    }
+
+    // Modal de finalización
+    if (data.resumen) {
+        document.getElementById('resumenEjercicio').textContent = "Ejercicio: " + data.resumen.ejercicio;
+        document.getElementById('resumenEficiencia').textContent = data.resumen.eficiencia + "%";
+        document.getElementById('resumenDetalles').textContent = `Óptimas: ${data.resumen.optimas} | Rápidas: ${data.resumen.rapidas} | Lentas: ${data.resumen.lentas}`;
+        document.getElementById('modalResumen').style.display = 'flex';
+    }
+}
+
+async function iniciarSesion() {
+    const ex = document.getElementById('ejercicioSelect').value;
+    const reps = parseInt(document.getElementById('repsInput').value);
+
+    await fetch('/api/iniciar', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ejercicio: ex, repeticiones: reps})
+    });
+}
+
+function cerrarModal() {
+    document.getElementById('modalResumen').style.display = 'none';
+}
+
+setInterval(actualizar, 800);
+</script>
+</body>
+</html>
