@@ -37,8 +37,9 @@ TOPIC_EVENTOS = f"mancuerna/{DISPOSITIVO}/eventos"
 TOPIC_RESUMEN = f"mancuerna/{DISPOSITIVO}/resumen"
 
 
+
 # =====================================================
-# MYSQL
+# MYSQL - AIVEN
 # =====================================================
 
 DB_CONFIG = {
@@ -46,15 +47,15 @@ DB_CONFIG = {
     "port": int(os.getenv("MYSQLPORT", "3306")),
     "user": os.getenv("MYSQLUSER"),
     "password": os.getenv("MYSQLPASSWORD"),
-    "database": os.getenv("MYSQLDATABASE")
+    "database": os.getenv("MYSQLDATABASE"),
+    "ssl_disabled": False,
+    "connection_timeout": 15
 }
 
 
 def get_db():
+    return mysql.connector.connect(**DB_CONFIG)
 
-    return mysql.connector.connect(
-        **DB_CONFIG
-    )
 
 
 # =====================================================
