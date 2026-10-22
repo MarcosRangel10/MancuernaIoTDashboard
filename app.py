@@ -313,6 +313,18 @@ def guardar_resumen(resumen):
 # CLIENTE MQTT
 # =====================================================
 
+
+# =====================================================
+# CLIENTE MQTT - DIAGNÓSTICO
+# =====================================================
+
+print("========== INICIO MQTT ==========", flush=True)
+print(f"MQTT_USER configurado: {bool(MQTT_USER)}", flush=True)
+print(f"MQTT_PASSWORD configurada: {bool(MQTT_PASSWORD)}", flush=True)
+
+def al_desconectar(client, userdata, rc):
+    print(f"MQTT desconectado. Código: {rc}", flush=True)
+
 mqtt_client = mqtt.Client()
 
 mqtt_client.username_pw_set(
@@ -325,16 +337,12 @@ mqtt_client.tls_set(
 )
 
 mqtt_client.on_connect = al_conectar
-
 mqtt_client.on_message = al_recibir
+mqtt_client.on_disconnect = al_desconectar
 
-
-# =====================================================
-# CONECTAR MQTT
-# =====================================================
+print("Intentando conectar con HiveMQ...", flush=True)
 
 try:
-
     mqtt_client.connect(
         MQTT_BROKER,
         MQTT_PORT,
@@ -342,6 +350,14 @@ try:
     )
 
     mqtt_client.loop_start()
+    print("Cliente MQTT iniciado.", flush=True)
+
+except Exception as error:
+    print(
+        f"ERROR INICIALIZANDO MQTT: {type(error).__name__}: {error}",
+        flush=True
+    )
+
 
 except Exception as error:
 
