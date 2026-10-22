@@ -115,6 +115,8 @@ def al_recibir(client, userdata, msg):
     global estado_global
 
     try:
+        print(f"MQTT RECIBIDO | Tema: {msg.topic}", flush=True)
+        print(f"MQTT PAYLOAD | {msg.payload.decode(errors='replace')}", flush=True)
 
         topic = msg.topic
 
