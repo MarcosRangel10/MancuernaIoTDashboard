@@ -81,30 +81,22 @@ estado_global = {
 # =====================================================
 # MQTT - CONEXIÓN
 # =====================================================
-
+   
 def al_conectar(client, userdata, flags, rc):
+    print(f"Resultado de conexión MQTT: {rc}", flush=True)
 
     if rc == 0:
-
-        print("========================================")
-        print("      FLASK MQTT CONECTADO")
-        print("========================================")
+        print("FLASK MQTT CONECTADO", flush=True)
 
         client.subscribe(TOPIC_STATUS)
-
         client.subscribe(TOPIC_DATOS)
-
         client.subscribe(TOPIC_EVENTOS)
-
         client.subscribe(TOPIC_RESUMEN)
 
-        print("Suscripciones MQTT realizadas")
-
+        print("Suscripciones MQTT realizadas", flush=True)
     else:
+        print(f"Error conectando MQTT. Código: {rc}", flush=True)
 
-        print(
-            f"Error conectando MQTT. Código: {rc}"
-        )
 
 
 # =====================================================
