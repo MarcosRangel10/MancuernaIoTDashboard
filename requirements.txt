@@ -2,3 +2,4 @@ Flask
 gunicorn
 mysql-connector-python
 paho-mqtt
+paho-mqtt==1.6.1
