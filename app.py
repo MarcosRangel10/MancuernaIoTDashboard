@@ -113,6 +113,11 @@ def al_recibir(client, userdata, msg):
 
         payload = msg.payload.decode()
 
+        print(
+            f"MQTT RECIBIDO | Tema: {topic} | Mensaje: {payload}",
+            flush=True
+        )
+
         # ---------------------------------------------
         # STATUS
         # ---------------------------------------------
