@@ -46,7 +46,9 @@ DB_CONFIG = {
     "port": int(os.getenv("MYSQLPORT", "3306")),
     "user": os.getenv("MYSQLUSER"),
     "password": os.getenv("MYSQLPASSWORD"),
-    "database": os.getenv("MYSQLDATABASE")
+    "database": os.getenv("MYSQLDATABASE"),
+    "ssl_disabled": False,
+    "connection_timeout": 15
 }
 
 
@@ -76,6 +78,76 @@ estado_global = {
     "resumen_final": None
 }
 
+# Guardar como máximo una lectura por dispositivo por segundo.
+ultimo_guardado = {}
+INTERVALO_GUARDADO = 1.0
+
+
+# =====================================================
+# GUARDAR LECTURAS DEL SENSOR EN MYSQL
+# =====================================================
+
+def guardar_dato_mancuerna(datos):
+    dispositivo = datos.get("dispositivo", DISPOSITIVO)
+    ahora = time.time()
+
+    if ahora - ultimo_guardado.get(dispositivo, 0) < INTERVALO_GUARDADO:
+        return
+
+    conn = None
+    cursor = None
+
+    try:
+        conn = get_db()
+        cursor = conn.cursor()
+
+        sql = """
+            INSERT INTO datos_mancuerna
+            (
+                dispositivo, ejercicio, angulo, movimiento, repeticiones,
+                objetivo, correctas, rapidas, lentas, estado, subida,
+                bajada, aceleracion, velocidad_angular
+            )
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        """
+
+        valores = (
+            dispositivo,
+            datos.get("ejercicio", "ninguno"),
+            datos.get("angulo", 0.0),
+            int(bool(datos.get("movimiento", False))),
+            datos.get("repeticiones", 0),
+            datos.get("objetivo", 0),
+            datos.get("correctas", 0),
+            datos.get("rapidas", 0),
+            datos.get("lentas", 0),
+            datos.get("estado", "ESPERA"),
+            datos.get("subida", 0.0),
+            datos.get("bajada", 0.0),
+            datos.get("aceleracion", 0.0),
+            datos.get("velocidad_angular", 0.0)
+        )
+
+        cursor.execute(sql, valores)
+        conn.commit()
+        ultimo_guardado[dispositivo] = ahora
+        print(
+            f"[{dispositivo}] Lectura guardada en MySQL | "
+            f"Ejercicio: {datos.get('ejercicio', 'ninguno')} | "
+            f"Ángulo: {float(datos.get('angulo', 0.0)):.2f}° | "
+            f"Reps: {datos.get('repeticiones', 0)}",
+            flush=True
+        )
+
+    except Exception as error:
+        print(f"ERROR guardando lectura en MySQL: {error}", flush=True)
+
+    finally:
+        if cursor is not None:
+            cursor.close()
+        if conn is not None and conn.is_connected():
+            conn.close()
+
 
 # =====================================================
 # MQTT - CONEXIÓN
@@ -85,9 +157,9 @@ def al_conectar(client, userdata, flags, rc):
 
     if rc == 0:
 
-        print("========================================")
-        print("      FLASK MQTT CONECTADO")
-        print("========================================")
+        print("========================================", flush=True)
+        print("      FLASK MQTT CONECTADO", flush=True)
+        print("========================================", flush=True)
 
         client.subscribe(TOPIC_STATUS)
 
@@ -97,12 +169,12 @@ def al_conectar(client, userdata, flags, rc):
 
         client.subscribe(TOPIC_RESUMEN)
 
-        print("Suscripciones MQTT realizadas")
+        print("Suscripciones MQTT realizadas", flush=True)
 
     else:
 
         print(
-            f"Error conectando MQTT. Código: {rc}"
+            f"Error conectando MQTT. Código: {rc}", flush=True
         )
 
 
@@ -119,6 +191,7 @@ def al_recibir(client, userdata, msg):
         topic = msg.topic
 
         payload = msg.payload.decode()
+        print(f"MQTT RECIBIDO | Tema: {topic}", flush=True)
 
         # ---------------------------------------------
         # STATUS
@@ -136,6 +209,8 @@ def al_recibir(client, userdata, msg):
             elif estado == "OFFLINE":
 
                 estado_global["esp32_conectado"] = False
+                estado_global["ultimo_heartbeat"] = 0
+                print("ESP32 reportó OFFLINE", flush=True)
 
             return
 
@@ -159,6 +234,7 @@ def al_recibir(client, userdata, msg):
 
                 estado_global["en_rutina"] = True
 
+            guardar_dato_mancuerna(datos)
             return
 
 
@@ -198,7 +274,8 @@ def al_recibir(client, userdata, msg):
 
         print(
             "Error procesando MQTT:",
-            error
+            error,
+            flush=True
         )
 
 
@@ -312,6 +389,15 @@ def guardar_resumen(resumen):
 # CLIENTE MQTT
 # =====================================================
 
+print("========== INICIO MQTT ==========", flush=True)
+print(f"MQTT_USER configurado: {bool(MQTT_USER)}", flush=True)
+print(f"MQTT_PASSWORD configurada: {bool(MQTT_PASSWORD)}", flush=True)
+
+
+def al_desconectar(client, userdata, rc):
+    print(f"MQTT desconectado. Código: {rc}", flush=True)
+
+
 mqtt_client = mqtt.Client()
 
 mqtt_client.username_pw_set(
@@ -324,29 +410,24 @@ mqtt_client.tls_set(
 )
 
 mqtt_client.on_connect = al_conectar
-
 mqtt_client.on_message = al_recibir
+mqtt_client.on_disconnect = al_desconectar
 
 
 # =====================================================
 # CONECTAR MQTT
 # =====================================================
 
+print("Intentando conectar con HiveMQ...", flush=True)
+
 try:
-
-    mqtt_client.connect(
-        MQTT_BROKER,
-        MQTT_PORT,
-        60
-    )
-
+    mqtt_client.connect(MQTT_BROKER, MQTT_PORT, 60)
     mqtt_client.loop_start()
-
+    print("Cliente MQTT iniciado.", flush=True)
 except Exception as error:
-
     print(
-        "Error inicializando MQTT:",
-        error
+        f"ERROR INICIALIZANDO MQTT: {type(error).__name__}: {error}",
+        flush=True
     )
 
 
@@ -369,11 +450,11 @@ def index():
 @app.route("/api/estado")
 def api_estado():
 
-    conectado = (
-        time.time()
-        - estado_global["ultimo_heartbeat"]
-    ) < 10.0
-
+    hay_heartbeat_reciente = (
+        estado_global["ultimo_heartbeat"] > 0
+        and (time.time() - estado_global["ultimo_heartbeat"]) < 10.0
+    )
+    conectado = estado_global["esp32_conectado"] and hay_heartbeat_reciente
     estado_global["esp32_conectado"] = conectado
 
     return jsonify({
